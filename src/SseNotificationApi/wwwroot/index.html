@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MVP SSE Notifications</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 760px; }
+    h1 { margin-bottom: 0.25rem; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+    .status { font-weight: bold; }
+    .online { color: #0b7a28; }
+    .offline { color: #a43232; }
+    input, button { padding: 0.55rem; font-size: 1rem; }
+    input { width: 70%; }
+    button { cursor: pointer; }
+    ul { padding-left: 1.3rem; }
+    li { margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>MVP de Notificação com SSE</h1>
+  <p>Conecte-se ao stream e envie mensagens pelo formulário abaixo ou pelo Swagger.</p>
+
+  <div class="card">
+    <div>Status da conexão: <span id="connectionStatus" class="status offline">desconectado</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Enviar mensagem</h2>
+    <form id="sendForm">
+      <input id="messageInput" name="message" type="text" placeholder="Digite uma mensagem..." required />
+      <button type="submit">Enviar</button>
+    </form>
+    <small>Endpoint: <code>POST /api/notifications</code></small>
+  </div>
+
+  <div class="card">
+    <h2>Mensagens recebidas</h2>
+    <ul id="messages"></ul>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('connectionStatus');
+    const messagesEl = document.getElementById('messages');
+    const formEl = document.getElementById('sendForm');
+    const inputEl = document.getElementById('messageInput');
+
+    const eventSource = new EventSource('/api/notifications/stream');
+
+    function setStatus(connected) {
+      statusEl.textContent = connected ? 'conectado' : 'desconectado';
+      statusEl.className = `status ${connected ? 'online' : 'offline'}`;
+    }
+
+    function notifyUser(text) {
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          new Notification('Nova notificação', { body: text });
+          return;
+        }
+
+        if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') {
+              new Notification('Nova notificação', { body: text });
+            }
+          });
+        }
+      }
+
+      alert(`Nova mensagem: ${text}`);
+    }
+
+    eventSource.addEventListener('connected', () => setStatus(true));
+
+    eventSource.addEventListener('notification', (event) => {
+      const data = JSON.parse(event.data);
+      const li = document.createElement('li');
+      const sentAt = new Date(data.sentAt).toLocaleTimeString('pt-BR');
+      li.textContent = `[${sentAt}] ${data.message}`;
+      messagesEl.prepend(li);
+      notifyUser(data.message);
+    });
+
+    eventSource.onerror = () => setStatus(false);
+
+    formEl.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const message = inputEl.value.trim();
+
+      if (!message) {
+        return;
+      }
+
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+
+      inputEl.value = '';
+      inputEl.focus();
+    });
+  </script>
+</body>
+</html>
