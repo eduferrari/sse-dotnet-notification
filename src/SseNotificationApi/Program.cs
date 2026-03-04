@@ -62,8 +62,8 @@ app.MapGet("/api/notifications/stream", async (
                 sentAt = DateTimeOffset.UtcNow
             });
 
-            await context.Response.WriteAsync($"event: notification\\n", cancellationToken);
-            await context.Response.WriteAsync($"data: {payload}\\n\\n", cancellationToken);
+            await context.Response.WriteAsync("event: notification\n", cancellationToken);
+            await context.Response.WriteAsync($"data: {payload}\n\n", cancellationToken);
             await context.Response.Body.FlushAsync(cancellationToken);
         }
     }
