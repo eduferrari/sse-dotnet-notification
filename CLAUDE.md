@@ -4,9 +4,7 @@
 
 ```bash
 cd src/SseNotificationApi
-dotnet restore
-dotnet build
-dotnet run
+dotnet restore && dotnet build && dotnet run
 ```
 
 No test project exists.
@@ -17,18 +15,31 @@ ASP.NET Core 8 Minimal API — `src/SseNotificationApi`.
 
 ### Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
+| Method | Path | Notes |
+|--------|------|-------|
 | `POST` | `/api/users` | Cria ou retorna usuário pelo `username` |
-| `GET` | `/api/users` | Lista todos os usuários com status |
-| `POST` | `/api/notifications` | Envia mensagem — `TargetUserId = null` = broadcast, Guid = usuário específico |
-| `GET` | `/api/notifications/stream?userId=` | Long-lived SSE connection (`text/event-stream`) |
+| `GET` | `/api/users` | Lista usuários com status online/offline |
+| `POST` | `/api/notifications` | `TargetUserId = null` → broadcast; Guid → usuário específico |
+| `GET` | `/api/notifications/stream?userId=` | SSE — `text/event-stream`, long-lived |
 
-### SSE Broadcast (`Services/NotificationChannel.cs`)
+Swagger UI: `/swagger`.
 
-Singleton holding a `ConcurrentDictionary<Guid, Channel<string>>`. Each client gets its own unbounded channel.
-- `PublishAsync(userId, message)` — envia para um usuário específico.
-- `PublishToAllAsync(message)` — itera todos os canais; remove os fechados (desconectados).
+### Key Files
+
+| File | Responsibility |
+|------|---------------|
+| `Data/AppDbContext.cs` | EF Core + SQLite (`notifications.db`, criado via `EnsureCreated`) |
+| `Services/NotificationChannel.cs` | In-memory SSE channels (`ConcurrentDictionary<Guid, Channel<string>>`) |
+| `Models/User.cs` | `Id`, `Username`, `Status` (enum: `Offline=0`, `Online=1`) |
+| `Models/Message.cs` | `Id`, `TargetUserId?` (null=broadcast), `Content`, `SentAt` |
+| `wwwroot/index.html` | Frontend estático com login, lista de usuários e envio |
+
+### SSE Flow
+
+1. `POST /api/users` → obtém `userId`
+2. `GET /api/notifications/stream?userId=` → marca usuário `Online`, abre canal
+3. Na desconexão (`finally`) → marca usuário `Offline`, remove canal
+4. `POST /api/notifications` → salva `Message` no DB, chama `PublishAsync` ou `PublishToAllAsync`
 
 ### SSE Event Format
 
@@ -39,18 +50,3 @@ data: ...
 event: notification
 data: {"message":"...","sentAt":"..."}
 ```
-
-### Persistência (`Data/AppDbContext.cs`)
-
-EF Core + SQLite (`notifications.db`, criado via `EnsureCreated` na inicialização).
-
-- `Users` — `Id` (Guid), `Username` (string), `Status` (`UserStatus` enum: Offline=0, Online=1)
-- `Messages` — `Id`, `TargetUserId?` (null=broadcast), `Content`, `SentAt`
-
-O stream endpoint marca o usuário como `Online` ao conectar e `Offline` ao desconectar (via `IServiceScopeFactory`).
-
-### Front-end (`wwwroot/index.html`)
-
-Duas fases: formulário de login (cria/recupera usuário) → UI principal com lista de usuários, select de destinatário (Todos / específico) e mensagens recebidas.
-
-Swagger UI available at `/swagger`.
