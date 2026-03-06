@@ -1,25 +1,14 @@
-# SSE .NET Notification MVP
+# SSE .NET Notification
 
-Projeto de estudo (MPV/MVP) para aprender **Server-Sent Events (SSE)** com uma API C#.
+Projeto de estudo para aprender **Server-Sent Events (SSE)** com ASP.NET Core 8.
 
-## O que este projeto entrega
+## Funcionalidades
 
-- API ASP.NET Core com Swagger.
-- Endpoint para **enviar mensagem**.
-- Endpoint SSE para o front **receber mensagens em tempo real**.
-- Front-end estático simples para visualizar e disparar notificações.
-
-## Endpoints
-
-- `POST /api/notifications`
-  - Body JSON:
-    ```json
-    { "message": "Olá via SSE" }
-    ```
-  - Envia a mensagem para todos os clientes conectados.
-
-- `GET /api/notifications/stream`
-  - Abre conexão SSE (`text/event-stream`) para receber eventos `notification`.
+- Cadastro de usuários com status **online/offline** persistido em SQLite
+- Envio de mensagem para um **usuário específico** ou **broadcast** para todos os conectados
+- Stream SSE em tempo real por usuário
+- Histórico de mensagens salvo no banco
+- Front-end estático com login, lista de usuários e envio de mensagens
 
 ## Executar localmente
 
@@ -27,17 +16,25 @@ Projeto de estudo (MPV/MVP) para aprender **Server-Sent Events (SSE)** com uma A
 
 ```bash
 cd src/SseNotificationApi
-dotnet restore
 dotnet run
 ```
 
-Depois abra:
-
-- App: `http://localhost:5000` (ou porta exibida no terminal)
+- App: `http://localhost:5000`
 - Swagger: `http://localhost:5000/swagger`
+
+O banco `notifications.db` é criado automaticamente na primeira execução.
+
+## Endpoints
+
+| Method | Path | Descrição |
+|--------|------|-----------|
+| `POST` | `/api/users` | Cria ou retorna usuário pelo `username` |
+| `GET` | `/api/users` | Lista todos os usuários com status |
+| `POST` | `/api/notifications` | Envia mensagem — `targetUserId: null` = broadcast |
+| `GET` | `/api/notifications/stream?userId=` | Abre stream SSE do usuário |
 
 ## Fluxo de uso
 
-1. Abra o front em uma aba para conectar no stream SSE.
-2. Envie mensagens pelo formulário da página **ou** pelo Swagger no `POST /api/notifications`.
-3. O front recebe o evento e notifica o usuário.
+1. Acesse `http://localhost:5000`, informe um nome e clique em **Conectar**.
+2. Abra o app em outra aba com um nome diferente para ter dois usuários.
+3. Envie mensagens para um usuário específico ou para todos pelo formulário ou pelo Swagger.
