@@ -25,16 +25,22 @@ app.MapPost("/api/notifications", async (
         return Results.BadRequest(new { error = "A mensagem é obrigatória." });
     }
 
-    await channel.PublishAsync(request.Message.Trim(), cancellationToken);
+    var delivered = await channel.PublishAsync(request.ClientId, request.Message.Trim(), cancellationToken);
+
+    if (!delivered)
+    {
+        return Results.NotFound(new { error = "Cliente não encontrado ou não está conectado." });
+    }
 
     return Results.Ok(new
     {
-        status = "Mensagem enviada para todos os clientes conectados.",
+        status = "Mensagem enviada para o cliente.",
+        clientId = request.ClientId,
         message = request.Message.Trim()
     });
 })
 .WithName("SendNotification")
-.WithSummary("Envia uma mensagem para todos os clientes conectados via SSE")
+.WithSummary("Envia uma mensagem para um cliente específico via SSE")
 .WithOpenApi();
 
 app.MapGet("/api/notifications/stream", async (
@@ -42,11 +48,19 @@ app.MapGet("/api/notifications/stream", async (
     NotificationChannel channel,
     CancellationToken cancellationToken) =>
 {
+    if (!context.Request.Query.TryGetValue("clientId", out var clientIdParam)
+        || !Guid.TryParse(clientIdParam, out var clientId))
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("clientId inválido ou ausente.", cancellationToken);
+        return;
+    }
+
     context.Response.Headers.Append("Content-Type", "text/event-stream");
     context.Response.Headers.Append("Cache-Control", "no-cache");
     context.Response.Headers.Append("Connection", "keep-alive");
 
-    var (clientId, reader) = channel.RegisterClient();
+    var reader = channel.RegisterClient(clientId);
 
     try
     {

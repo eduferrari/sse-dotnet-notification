@@ -1,3 +1,3 @@
 namespace SseNotificationApi.Models;
 
-public sealed record NotificationRequest(string Message);
+public sealed record NotificationRequest(Guid ClientId, string Message);

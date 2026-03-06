@@ -7,14 +7,11 @@ public sealed class NotificationChannel
 {
     private readonly ConcurrentDictionary<Guid, Channel<string>> _clients = new();
 
-    public (Guid ClientId, ChannelReader<string> Reader) RegisterClient()
+    public ChannelReader<string> RegisterClient(Guid clientId)
     {
         var channel = Channel.CreateUnbounded<string>();
-        var id = Guid.NewGuid();
-
-        _clients[id] = channel;
-
-        return (id, channel.Reader);
+        _clients[clientId] = channel;
+        return channel.Reader;
     }
 
     public void UnregisterClient(Guid clientId)
@@ -25,25 +22,22 @@ public sealed class NotificationChannel
         }
     }
 
-    public async Task PublishAsync(string message, CancellationToken cancellationToken)
+    public async Task<bool> PublishAsync(Guid targetClientId, string message, CancellationToken cancellationToken)
     {
-        var failedClients = new List<Guid>();
-
-        foreach (var (clientId, clientChannel) in _clients)
+        if (!_clients.TryGetValue(targetClientId, out var clientChannel))
         {
-            try
-            {
-                await clientChannel.Writer.WriteAsync(message, cancellationToken);
-            }
-            catch (ChannelClosedException)
-            {
-                failedClients.Add(clientId);
-            }
+            return false;
         }
 
-        foreach (var clientId in failedClients)
+        try
         {
-            UnregisterClient(clientId);
+            await clientChannel.Writer.WriteAsync(message, cancellationToken);
+            return true;
+        }
+        catch (ChannelClosedException)
+        {
+            UnregisterClient(targetClientId);
+            return false;
         }
     }
 }
