@@ -24,6 +24,15 @@ dotnet run
 
 O banco `notifications.db` é criado automaticamente na primeira execução.
 
+## Testes
+
+```bash
+cd tests/SseNotificationApi.Tests
+dotnet test
+```
+
+Inclui testes unitários (`NotificationChannel`) e de integração (endpoints `/api/users` e `/api/notifications`) com xUnit e `Microsoft.AspNetCore.Mvc.Testing`.
+
 ## Endpoints
 
 | Method | Path | Descrição |
