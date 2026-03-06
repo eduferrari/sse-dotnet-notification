@@ -23,6 +23,7 @@
   <p>Conecte-se ao stream e envie mensagens pelo formulário abaixo ou pelo Swagger.</p>
 
   <div class="card">
+    <div>Seu ID: <code id="clientIdDisplay"></code></div>
     <div>Status da conexão: <span id="connectionStatus" class="status offline">desconectado</span></div>
   </div>
 
@@ -45,8 +46,12 @@
     const messagesEl = document.getElementById('messages');
     const formEl = document.getElementById('sendForm');
     const inputEl = document.getElementById('messageInput');
+    const clientIdDisplayEl = document.getElementById('clientIdDisplay');
 
-    const eventSource = new EventSource('/api/notifications/stream');
+    const clientId = crypto.randomUUID();
+    clientIdDisplayEl.textContent = clientId;
+
+    const eventSource = new EventSource(`/api/notifications/stream?clientId=${clientId}`);
 
     function setStatus(connected) {
       statusEl.textContent = connected ? 'conectado' : 'desconectado';
@@ -96,7 +101,7 @@
       await fetch('/api/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ clientId, message })
       });
 
       inputEl.value = '';
