@@ -52,3 +52,9 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+src/.idea/.idea.src.dir/.idea/.gitignore
+src/.idea/.idea.src.dir/.idea/copilot.data.migration.ask2agent.xml
+src/.idea/.idea.src.dir/.idea/indexLayout.xml
+src/.idea/.idea.src.dir/.idea/vcs.xml
+*/.idea/*
+*/src/.idea/*s
