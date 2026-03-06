@@ -3,11 +3,14 @@
 ## Commands
 
 ```bash
+# Run the API
 cd src/SseNotificationApi
 dotnet restore && dotnet build && dotnet run
-```
 
-No test project exists.
+# Run tests
+cd tests/SseNotificationApi.Tests
+dotnet test
+```
 
 ## Architecture
 
@@ -33,6 +36,17 @@ Swagger UI: `/swagger`.
 | `Models/User.cs` | `Id`, `Username`, `Status` (enum: `Offline=0`, `Online=1`) |
 | `Models/Message.cs` | `Id`, `TargetUserId?` (null=broadcast), `Content`, `SentAt` |
 | `wwwroot/index.html` | Frontend estático com login, lista de usuários e envio |
+
+### Test Structure
+
+`tests/SseNotificationApi.Tests` — xUnit + `Microsoft.AspNetCore.Mvc.Testing`
+
+| Path | Type |
+|------|------|
+| `Unit/NotificationChannelTests.cs` | Testes unitários do `NotificationChannel` |
+| `Integration/UsersEndpointTests.cs` | Testes de integração do endpoint `/api/users` |
+| `Integration/NotificationsEndpointTests.cs` | Testes de integração do endpoint `/api/notifications` |
+| `Infrastructure/WebAppFactory.cs` | `WebApplicationFactory` compartilhada pelos testes de integração |
 
 ### SSE Flow
 
