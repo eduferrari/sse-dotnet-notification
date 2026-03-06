@@ -1,33 +1,56 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Commands
 
 ```bash
-# From the project directory
 cd src/SseNotificationApi
-
 dotnet restore
 dotnet build
 dotnet run
 ```
 
-No test project exists in this repository.
+No test project exists.
 
 ## Architecture
 
-Single-project ASP.NET Core 8 Minimal API (`src/SseNotificationApi`) with two endpoints:
+ASP.NET Core 8 Minimal API — `src/SseNotificationApi`.
 
-- `POST /api/notifications` — accepts `{ "message": "..." }`, publishes to all connected SSE clients
-- `GET /api/notifications/stream` — long-lived SSE connection (`text/event-stream`)
+### Endpoints
 
-**SSE broadcast mechanism** (`Services/NotificationChannel.cs`): a singleton that holds a `ConcurrentDictionary<Guid, Channel<string>>`. Each SSE client gets its own unbounded `System.Threading.Channels.Channel<string>`. Publishing iterates all registered channels and writes to each writer; disconnected clients (whose channel is closed) are collected and removed.
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/users` | Cria ou retorna usuário pelo `username` |
+| `GET` | `/api/users` | Lista todos os usuários com status |
+| `POST` | `/api/notifications` | Envia mensagem — `TargetUserId = null` = broadcast, Guid = usuário específico |
+| `GET` | `/api/notifications/stream?userId=` | Long-lived SSE connection (`text/event-stream`) |
 
-**SSE event format** emitted by the stream endpoint:
-- On connect: `event: connected\ndata: ...\n\n`
-- On message: `event: notification\ndata: {"message":"...","sentAt":"..."}\n\n`
+### SSE Broadcast (`Services/NotificationChannel.cs`)
 
-**Front-end** (`wwwroot/index.html`): static page served via `UseDefaultFiles`/`UseStaticFiles`. Uses `EventSource` to connect to the stream and the Web Notifications API (with `alert` fallback) to surface messages.
+Singleton holding a `ConcurrentDictionary<Guid, Channel<string>>`. Each client gets its own unbounded channel.
+- `PublishAsync(userId, message)` — envia para um usuário específico.
+- `PublishToAllAsync(message)` — itera todos os canais; remove os fechados (desconectados).
 
-Swagger UI is available at `/swagger` in all environments.
+### SSE Event Format
+
+```
+event: connected
+data: ...
+
+event: notification
+data: {"message":"...","sentAt":"..."}
+```
+
+### Persistência (`Data/AppDbContext.cs`)
+
+EF Core + SQLite (`notifications.db`, criado via `EnsureCreated` na inicialização).
+
+- `Users` — `Id` (Guid), `Username` (string), `Status` (`UserStatus` enum: Offline=0, Online=1)
+- `Messages` — `Id`, `TargetUserId?` (null=broadcast), `Content`, `SentAt`
+
+O stream endpoint marca o usuário como `Online` ao conectar e `Offline` ao desconectar (via `IServiceScopeFactory`).
+
+### Front-end (`wwwroot/index.html`)
+
+Duas fases: formulário de login (cria/recupera usuário) → UI principal com lista de usuários, select de destinatário (Todos / específico) e mensagens recebidas.
+
+Swagger UI available at `/swagger`.
