@@ -1,10 +1,14 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SseNotificationApi", "src\SseNotificationApi\SseNotificationApi.csproj", "{CD4301A4-6A17-DCEA-38EE-13D31DD12FC0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{DFEA1F8A-97E8-4523-B2A6-BA1A1C6E7BFE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SseNotificationApi.Tests", "tests\SseNotificationApi.Tests\SseNotificationApi.Tests.csproj", "{191C58AE-08C8-4C83-AE35-5F5543F6F0EA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -16,12 +20,17 @@ Global
 		{CD4301A4-6A17-DCEA-38EE-13D31DD12FC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CD4301A4-6A17-DCEA-38EE-13D31DD12FC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CD4301A4-6A17-DCEA-38EE-13D31DD12FC0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{191C58AE-08C8-4C83-AE35-5F5543F6F0EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{191C58AE-08C8-4C83-AE35-5F5543F6F0EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{191C58AE-08C8-4C83-AE35-5F5543F6F0EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{191C58AE-08C8-4C83-AE35-5F5543F6F0EA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{CD4301A4-6A17-DCEA-38EE-13D31DD12FC0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{191C58AE-08C8-4C83-AE35-5F5543F6F0EA} = {DFEA1F8A-97E8-4523-B2A6-BA1A1C6E7BFE}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9F58B733-FDBA-4ED4-8BAA-57A745459AEB}

@@ -174,3 +174,5 @@ app.MapGet("/api/notifications/stream", async (
 .WithOpenApi();
 
 app.Run();
+
+public partial class Program { }
