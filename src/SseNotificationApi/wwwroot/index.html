@@ -3,110 +3,200 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MVP SSE Notifications</title>
+  <title>SSE Notifications</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 760px; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 800px; }
     h1 { margin-bottom: 0.25rem; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+    h2 { margin: 0 0 0.75rem; font-size: 1rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    input, select, button { padding: 0.5rem 0.75rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 4px; }
+    input, select { flex: 1; min-width: 0; }
+    button { cursor: pointer; background: #1a73e8; color: #fff; border-color: #1a73e8; white-space: nowrap; }
+    button:disabled { background: #aaa; border-color: #aaa; cursor: default; }
+    button.secondary { background: #fff; color: #333; border-color: #ccc; }
     .status { font-weight: bold; }
-    .online { color: #0b7a28; }
+    .online  { color: #0b7a28; }
     .offline { color: #a43232; }
-    input, button { padding: 0.55rem; font-size: 1rem; }
-    input { width: 70%; }
-    button { cursor: pointer; }
-    ul { padding-left: 1.3rem; }
-    li { margin-bottom: 0.5rem; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { padding: 0.3rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.95rem; }
+    li:last-child { border-bottom: none; }
+    .badge { display: inline-block; font-size: 0.7rem; padding: 1px 6px; border-radius: 10px;
+             font-weight: bold; margin-left: 4px; }
+    .badge-online  { background: #d4edda; color: #0b7a28; }
+    .badge-offline { background: #f8d7da; color: #a43232; }
+    #connectSection { max-width: 420px; }
+    #mainSection { display: none; }
   </style>
 </head>
 <body>
-  <h1>MVP de Notificação com SSE</h1>
-  <p>Conecte-se ao stream e envie mensagens pelo formulário abaixo ou pelo Swagger.</p>
+  <h1>SSE Notifications</h1>
 
-  <div class="card">
-    <div>Seu ID: <code id="clientIdDisplay"></code></div>
-    <div>Status da conexão: <span id="connectionStatus" class="status offline">desconectado</span></div>
+  <!-- Fase 1: conectar -->
+  <div id="connectSection" class="card">
+    <h2>Entrar</h2>
+    <div class="row">
+      <input id="usernameInput" type="text" placeholder="Seu nome de usuário..." />
+      <button id="connectBtn" onclick="connect()">Conectar</button>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Enviar mensagem</h2>
-    <form id="sendForm">
-      <input id="messageInput" name="message" type="text" placeholder="Digite uma mensagem..." required />
-      <button type="submit">Enviar</button>
-    </form>
-    <small>Endpoint: <code>POST /api/notifications</code></small>
-  </div>
+  <!-- Fase 2: UI principal -->
+  <div id="mainSection">
+    <div class="card">
+      <div>Conectado como: <strong id="usernameDisplay"></strong></div>
+      <div>Status: <span id="connectionStatus" class="status offline">desconectado</span></div>
+    </div>
 
-  <div class="card">
-    <h2>Mensagens recebidas</h2>
-    <ul id="messages"></ul>
+    <div class="card">
+      <h2>Enviar mensagem</h2>
+      <form id="sendForm">
+        <div class="row" style="margin-bottom:0.5rem">
+          <select id="targetUser">
+            <option value="">Todos os usuários online</option>
+          </select>
+        </div>
+        <div class="row">
+          <input id="messageInput" type="text" placeholder="Digite uma mensagem..." required />
+          <button type="submit">Enviar</button>
+        </div>
+      </form>
+      <small>Endpoint: <code>POST /api/notifications</code></small>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:0.75rem">
+        <h2 style="margin:0; flex:1">Usuários</h2>
+        <button class="secondary" onclick="fetchUsers()">Atualizar</button>
+      </div>
+      <ul id="usersList"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Mensagens recebidas</h2>
+      <ul id="messages"></ul>
+    </div>
   </div>
 
   <script>
-    const statusEl = document.getElementById('connectionStatus');
-    const messagesEl = document.getElementById('messages');
-    const formEl = document.getElementById('sendForm');
-    const inputEl = document.getElementById('messageInput');
-    const clientIdDisplayEl = document.getElementById('clientIdDisplay');
+    let currentUserId = null;
+    let eventSource = null;
 
-    const clientId = crypto.randomUUID();
-    clientIdDisplayEl.textContent = clientId;
+    async function connect() {
+      const username = document.getElementById('usernameInput').value.trim();
+      if (!username) return;
 
-    const eventSource = new EventSource(`/api/notifications/stream?clientId=${clientId}`);
+      document.getElementById('connectBtn').disabled = true;
 
-    function setStatus(connected) {
-      statusEl.textContent = connected ? 'conectado' : 'desconectado';
-      statusEl.className = `status ${connected ? 'online' : 'offline'}`;
-    }
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
 
-    function notifyUser(text) {
-      if ('Notification' in window) {
-        if (Notification.permission === 'granted') {
-          new Notification('Nova notificação', { body: text });
-          return;
-        }
-
-        if (Notification.permission !== 'denied') {
-          Notification.requestPermission().then((permission) => {
-            if (permission === 'granted') {
-              new Notification('Nova notificação', { body: text });
-            }
-          });
-        }
-      }
-
-      alert(`Nova mensagem: ${text}`);
-    }
-
-    eventSource.addEventListener('connected', () => setStatus(true));
-
-    eventSource.addEventListener('notification', (event) => {
-      const data = JSON.parse(event.data);
-      const li = document.createElement('li');
-      const sentAt = new Date(data.sentAt).toLocaleTimeString('pt-BR');
-      li.textContent = `[${sentAt}] ${data.message}`;
-      messagesEl.prepend(li);
-      notifyUser(data.message);
-    });
-
-    eventSource.onerror = () => setStatus(false);
-
-    formEl.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const message = inputEl.value.trim();
-
-      if (!message) {
+      if (!res.ok) {
+        alert('Erro ao criar usuário.');
+        document.getElementById('connectBtn').disabled = false;
         return;
       }
+
+      const user = await res.json();
+      currentUserId = user.id;
+
+      document.getElementById('usernameDisplay').textContent = user.username;
+      document.getElementById('connectSection').style.display = 'none';
+      document.getElementById('mainSection').style.display = '';
+
+      openStream();
+      fetchUsers();
+    }
+
+    function openStream() {
+      eventSource = new EventSource(`/api/notifications/stream?userId=${currentUserId}`);
+
+      eventSource.addEventListener('connected', () => {
+        setStatus(true);
+        fetchUsers();
+      });
+
+      eventSource.addEventListener('notification', (event) => {
+        const data = JSON.parse(event.data);
+        const li = document.createElement('li');
+        const sentAt = new Date(data.sentAt).toLocaleTimeString('pt-BR');
+        li.textContent = `[${sentAt}] ${data.message}`;
+        document.getElementById('messages').prepend(li);
+        notifyUser(data.message);
+      });
+
+      eventSource.onerror = () => setStatus(false);
+    }
+
+    function setStatus(connected) {
+      const el = document.getElementById('connectionStatus');
+      el.textContent = connected ? 'conectado' : 'desconectado';
+      el.className = `status ${connected ? 'online' : 'offline'}`;
+    }
+
+    async function fetchUsers() {
+      const res = await fetch('/api/users');
+      if (!res.ok) return;
+
+      const users = await res.json();
+
+      // Atualiza dropdown de destinatários (exclui o próprio usuário)
+      const select = document.getElementById('targetUser');
+      const currentValue = select.value;
+      select.innerHTML = '<option value="">Todos os usuários online</option>';
+      for (const u of users) {
+        if (u.id === currentUserId) continue;
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.username;
+        select.appendChild(opt);
+      }
+      if (currentValue) select.value = currentValue;
+
+      // Atualiza lista de usuários
+      const list = document.getElementById('usersList');
+      list.innerHTML = '';
+      for (const u of users) {
+        const li = document.createElement('li');
+        const isOnline = u.status === 1;
+        const badge = `<span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${isOnline ? 'online' : 'offline'}</span>`;
+        li.innerHTML = `${u.username}${badge}${u.id === currentUserId ? ' <em>(você)</em>' : ''}`;
+        list.appendChild(li);
+      }
+    }
+
+    document.getElementById('sendForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const message = document.getElementById('messageInput').value.trim();
+      if (!message) return;
+
+      const targetUserId = document.getElementById('targetUser').value || null;
 
       await fetch('/api/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, message })
+        body: JSON.stringify({ targetUserId, message })
       });
 
-      inputEl.value = '';
-      inputEl.focus();
+      document.getElementById('messageInput').value = '';
+      document.getElementById('messageInput').focus();
     });
+
+    function notifyUser(text) {
+      if (!('Notification' in window)) { alert(`Nova mensagem: ${text}`); return; }
+
+      if (Notification.permission === 'granted') {
+        new Notification('Nova notificação', { body: text });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(p => {
+          if (p === 'granted') new Notification('Nova notificação', { body: text });
+        });
+      }
+    }
   </script>
 </body>
 </html>

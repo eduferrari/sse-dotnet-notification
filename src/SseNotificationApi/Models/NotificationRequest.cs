@@ -1,3 +1,6 @@
 namespace SseNotificationApi.Models;
 
-public sealed record NotificationRequest(Guid ClientId, string Message);
+// TargetUserId = null → broadcast para todos os usuários online
+public sealed record NotificationRequest(Guid? TargetUserId, string Message);
+
+public sealed record CreateUserRequest(string Username);

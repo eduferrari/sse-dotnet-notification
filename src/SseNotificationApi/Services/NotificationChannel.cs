@@ -7,27 +7,25 @@ public sealed class NotificationChannel
 {
     private readonly ConcurrentDictionary<Guid, Channel<string>> _clients = new();
 
-    public ChannelReader<string> RegisterClient(Guid clientId)
+    public ChannelReader<string> RegisterClient(Guid userId)
     {
         var channel = Channel.CreateUnbounded<string>();
-        _clients[clientId] = channel;
+        _clients[userId] = channel;
         return channel.Reader;
     }
 
-    public void UnregisterClient(Guid clientId)
+    public void UnregisterClient(Guid userId)
     {
-        if (_clients.TryRemove(clientId, out var channel))
+        if (_clients.TryRemove(userId, out var channel))
         {
             channel.Writer.TryComplete();
         }
     }
 
-    public async Task<bool> PublishAsync(Guid targetClientId, string message, CancellationToken cancellationToken)
+    public async Task<bool> PublishAsync(Guid targetUserId, string message, CancellationToken cancellationToken)
     {
-        if (!_clients.TryGetValue(targetClientId, out var clientChannel))
-        {
+        if (!_clients.TryGetValue(targetUserId, out var clientChannel))
             return false;
-        }
 
         try
         {
@@ -36,8 +34,28 @@ public sealed class NotificationChannel
         }
         catch (ChannelClosedException)
         {
-            UnregisterClient(targetClientId);
+            UnregisterClient(targetUserId);
             return false;
         }
+    }
+
+    public async Task PublishToAllAsync(string message, CancellationToken cancellationToken)
+    {
+        var failed = new List<Guid>();
+
+        foreach (var (id, channel) in _clients)
+        {
+            try
+            {
+                await channel.Writer.WriteAsync(message, cancellationToken);
+            }
+            catch (ChannelClosedException)
+            {
+                failed.Add(id);
+            }
+        }
+
+        foreach (var id in failed)
+            UnregisterClient(id);
     }
 }
