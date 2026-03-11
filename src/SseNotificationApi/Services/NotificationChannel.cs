@@ -14,6 +14,8 @@ public sealed class NotificationChannel
         return channel.Reader;
     }
 
+    public bool HasClient(Guid userId) => _clients.ContainsKey(userId);
+
     public void UnregisterClient(Guid userId)
     {
         if (_clients.TryRemove(userId, out var channel))

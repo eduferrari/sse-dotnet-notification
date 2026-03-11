@@ -9,8 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<NotificationChannel>();
+builder.Services.AddSingleton<IKafkaProducerService, KafkaProducerService>();
+builder.Services.AddHostedService<KafkaConsumerService>();
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=notifications.db"));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
@@ -59,6 +61,7 @@ app.MapPost("/api/notifications", async (
     NotificationRequest request,
     AppDbContext db,
     NotificationChannel channel,
+    IKafkaProducerService kafkaProducer,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.Message))
@@ -71,18 +74,15 @@ app.MapPost("/api/notifications", async (
         TargetUserId = request.TargetUserId,
         Content = message
     });
-    await db.SaveChangesAsync();
+    await db.SaveChangesAsync(cancellationToken);
+
+    if (request.TargetUserId is not null && !channel.HasClient(request.TargetUserId.Value))
+        return Results.NotFound(new { error = "Usuário não encontrado ou não está conectado." });
+
+    await kafkaProducer.PublishAsync(request.TargetUserId, message, cancellationToken);
 
     if (request.TargetUserId is null)
-    {
-        await channel.PublishToAllAsync(message, cancellationToken);
         return Results.Ok(new { status = "Mensagem enviada para todos os usuários online.", message });
-    }
-
-    var delivered = await channel.PublishAsync(request.TargetUserId.Value, message, cancellationToken);
-
-    if (!delivered)
-        return Results.NotFound(new { error = "Usuário não encontrado ou não está conectado." });
 
     return Results.Ok(new
     {

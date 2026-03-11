@@ -41,6 +41,9 @@ ScaffoldingReadMe.txt
 *~
 CodeCoverage/
 
+# SQLite (legado - substituído por PostgreSQL)
+*.db
+
 # MSBuild Binary and Structured Log
 *.binlog
 
