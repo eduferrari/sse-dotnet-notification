@@ -1,76 +1,61 @@
-# CLAUDE.md
+# SSE Notification API
+
+ASP.NET Core 8 Minimal API with PostgreSQL and Kafka.
 
 ## Commands
 
 ```bash
-# Subir infraestrutura (Postgres + Kafka)
+# Infrastructure (Postgres + Kafka)
 docker-compose up -d
 
-# Run the API
-cd src/SseNotificationApi
-dotnet restore && dotnet build && dotnet run
+# Run API
+dotnet run --project src/SseNotificationApi
 
 # Run tests
-cd tests/SseNotificationApi.Tests
-dotnet test
+dotnet test tests/SseNotificationApi.Tests
 ```
 
-## Architecture
+## Endpoints
 
-ASP.NET Core 8 Minimal API — `src/SseNotificationApi`.
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/users` | Create or return user by `username` |
+| `GET` | `/api/users` | List users with online/offline status |
+| `POST` | `/api/notifications` | `TargetUserId = null` → broadcast; Guid → specific user |
+| `GET` | `/api/notifications/stream?userId=` | SSE stream (`text/event-stream`) |
 
-### Endpoints
+Swagger UI: `/swagger`
 
-| Method | Path | Notes |
-|--------|------|-------|
-| `POST` | `/api/users` | Cria ou retorna usuário pelo `username` |
-| `GET` | `/api/users` | Lista usuários com status online/offline |
-| `POST` | `/api/notifications` | `TargetUserId = null` → broadcast; Guid → usuário específico |
-| `GET` | `/api/notifications/stream?userId=` | SSE — `text/event-stream`, long-lived |
-
-Swagger UI: `/swagger`.
-
-### Key Files
+## Key Files
 
 | File | Responsibility |
 |------|---------------|
-| `Data/AppDbContext.cs` | EF Core + PostgreSQL (tabelas criadas via `EnsureCreated`) |
+| `src/SseNotificationApi/Program.cs` | Endpoints + DI wiring |
+| `Data/AppDbContext.cs` | EF Core + PostgreSQL (`EnsureCreated`) |
 | `Services/NotificationChannel.cs` | In-memory SSE channels (`ConcurrentDictionary<Guid, Channel<string>>`) |
-| `Services/KafkaProducerService.cs` | `IKafkaProducerService` — publica mensagens no tópico Kafka |
-| `Services/KafkaConsumerService.cs` | `BackgroundService` — consome do Kafka e entrega ao `NotificationChannel` |
-| `Models/User.cs` | `Id`, `Username`, `Status` (enum: `Offline=0`, `Online=1`) |
+| `Services/KafkaProducerService.cs` | `IKafkaProducerService` — publishes to Kafka |
+| `Services/KafkaConsumerService.cs` | `BackgroundService` — consumes Kafka → `NotificationChannel` |
+| `Models/User.cs` | `Id`, `Username`, `Status` (`Offline=0`, `Online=1`) |
 | `Models/Message.cs` | `Id`, `TargetUserId?` (null=broadcast), `Content`, `SentAt` |
-| `appsettings.json` | Connection string do Postgres e config do Kafka |
-| `wwwroot/index.html` | Frontend estático com login, lista de usuários e envio |
+| `wwwroot/index.html` | Static frontend (login, user list, send) |
 
-### Infrastructure
+## Infrastructure
 
-| Serviço | Imagem | Porta |
-|---------|--------|-------|
+| Service | Image | Port |
+|---------|-------|------|
 | PostgreSQL | `postgres:16` | `5432` |
 | Kafka | `confluentinc/cp-kafka:7.6.0` | `9092` |
 
-Credenciais Postgres: `devuser` / `devpass` / DB `ssenotification`.
-Tópico Kafka: `ssenotification` (criado automaticamente no startup).
+Postgres: `devuser` / `devpass` / DB `ssenotification`
+Kafka topic: `ssenotification` (auto-created on startup)
 
-### Test Structure
+## Notification Flow
 
-`tests/SseNotificationApi.Tests` — xUnit + `Microsoft.AspNetCore.Mvc.Testing`
+1. `POST /api/notifications` → validate → save to DB → check `HasClient` (404 if disconnected) → publish to Kafka
+2. `KafkaConsumerService` consumes topic → `NotificationChannel.PublishAsync` / `PublishToAllAsync`
+3. `GET /api/notifications/stream?userId=` reads from channel → sends SSE events
 
-| Path | Type |
-|------|------|
-| `Unit/NotificationChannelTests.cs` | Testes unitários do `NotificationChannel` |
-| `Integration/UsersEndpointTests.cs` | Testes de integração do endpoint `/api/users` |
-| `Integration/NotificationsEndpointTests.cs` | Testes de integração do endpoint `/api/notifications` |
-| `Infrastructure/WebAppFactory.cs` | `WebApplicationFactory` — substitui Postgres por SQLite in-memory e Kafka por no-op |
-
-### Notification Flow
-
-1. `POST /api/notifications` → valida → salva no DB → checa se usuário está conectado (404 se não) → publica no Kafka
-2. `KafkaConsumerService` consome o tópico → chama `NotificationChannel.PublishAsync` / `PublishToAllAsync`
-3. `GET /api/notifications/stream?userId=` lê do canal e envia ao cliente via SSE
-
-### SSE Event Format
+## SSE Event Format
 
 ```
 event: connected
@@ -79,3 +64,14 @@ data: ...
 event: notification
 data: {"message":"...","sentAt":"..."}
 ```
+
+## Tests
+
+`tests/SseNotificationApi.Tests` — xUnit + `Microsoft.AspNetCore.Mvc.Testing`
+
+| Path | Type |
+|------|------|
+| `Unit/NotificationChannelTests.cs` | Unit tests for `NotificationChannel` |
+| `Integration/UsersEndpointTests.cs` | Integration tests for `/api/users` |
+| `Integration/NotificationsEndpointTests.cs` | Integration tests for `/api/notifications` |
+| `Infrastructure/WebAppFactory.cs` | Replaces Postgres with SQLite in-memory, Kafka with no-op |
