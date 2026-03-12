@@ -16,6 +16,7 @@
     button { cursor: pointer; background: #1a73e8; color: #fff; border-color: #1a73e8; white-space: nowrap; }
     button:disabled { background: #aaa; border-color: #aaa; cursor: default; }
     button.secondary { background: #fff; color: #333; border-color: #ccc; }
+    button.danger { background: #d93025; border-color: #d93025; }
     .status { font-weight: bold; }
     .online  { color: #0b7a28; }
     .offline { color: #a43232; }
@@ -26,27 +27,44 @@
              font-weight: bold; margin-left: 4px; }
     .badge-online  { background: #d4edda; color: #0b7a28; }
     .badge-offline { background: #f8d7da; color: #a43232; }
-    #connectSection { max-width: 420px; }
+    #authSection { max-width: 420px; }
     #mainSection { display: none; }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .tab { cursor: pointer; padding: 0.4rem 0.9rem; border: 1px solid #ccc; border-radius: 4px;
+           background: #f5f5f5; font-size: 0.9rem; }
+    .tab.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+    .error { color: #d93025; font-size: 0.85rem; margin-top: 0.4rem; }
   </style>
 </head>
 <body>
   <h1>SSE Notifications</h1>
 
-  <!-- Fase 1: conectar -->
-  <div id="connectSection" class="card">
-    <h2>Entrar</h2>
-    <div class="row">
-      <input id="usernameInput" type="text" placeholder="Seu nome de usuário..." />
-      <button id="connectBtn" onclick="connect()">Conectar</button>
+  <!-- Auth section -->
+  <div id="authSection" class="card">
+    <div class="tabs">
+      <span class="tab active" onclick="switchTab('login')">Entrar</span>
+      <span class="tab" onclick="switchTab('register')">Registrar</span>
     </div>
+    <div class="row" style="margin-bottom:0.5rem">
+      <input id="usernameInput" type="text" placeholder="Usuário..." />
+    </div>
+    <div class="row">
+      <input id="passwordInput" type="password" placeholder="Senha..." />
+      <button id="authBtn" onclick="handleAuth()">Entrar</button>
+    </div>
+    <div id="authError" class="error" style="display:none"></div>
   </div>
 
-  <!-- Fase 2: UI principal -->
+  <!-- Main section -->
   <div id="mainSection">
     <div class="card">
-      <div>Conectado como: <strong id="usernameDisplay"></strong></div>
-      <div>Status: <span id="connectionStatus" class="status offline">desconectado</span></div>
+      <div class="row" style="justify-content:space-between">
+        <div>
+          Conectado como: <strong id="usernameDisplay"></strong>
+          &nbsp;|&nbsp; Status: <span id="connectionStatus" class="status offline">desconectado</span>
+        </div>
+        <button class="secondary danger" onclick="logout()">Sair</button>
+      </div>
     </div>
 
     <div class="card">
@@ -62,14 +80,10 @@
           <button type="submit">Enviar</button>
         </div>
       </form>
-      <small>Endpoint: <code>POST /api/notifications</code></small>
     </div>
 
     <div class="card">
-      <div class="row" style="margin-bottom:0.75rem">
-        <h2 style="margin:0; flex:1">Usuários</h2>
-        <button class="secondary" onclick="fetchUsers()">Atualizar</button>
-      </div>
+      <h2>Usuários <small style="font-weight:normal;color:#888">(atualiza em tempo real)</small></h2>
       <ul id="usersList"></ul>
     </div>
 
@@ -81,105 +95,161 @@
 
   <script>
     let currentUserId = null;
-    let eventSource = null;
+    let jwtToken      = null;
+    let eventSource   = null;
+    let currentTab    = 'login';
 
-    async function connect() {
+    // Restore session from localStorage
+    (function restoreSession() {
+      const saved = localStorage.getItem('sse_session');
+      if (!saved) return;
+      try {
+        const s = JSON.parse(saved);
+        jwtToken      = s.token;
+        currentUserId = s.userId;
+        document.getElementById('usernameDisplay').textContent = s.username;
+        document.getElementById('authSection').style.display   = 'none';
+        document.getElementById('mainSection').style.display   = 'block';
+        openStream();
+      } catch {
+        localStorage.removeItem('sse_session');
+      }
+    })();
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach((el, i) =>
+        el.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register')));
+      document.getElementById('authBtn').textContent = tab === 'login' ? 'Entrar' : 'Registrar';
+    }
+
+    async function handleAuth() {
       const username = document.getElementById('usernameInput').value.trim();
-      if (!username) return;
+      const password = document.getElementById('passwordInput').value;
+      if (!username || !password) return;
 
-      document.getElementById('connectBtn').disabled = true;
+      document.getElementById('authBtn').disabled = true;
+      document.getElementById('authError').style.display = 'none';
 
-      const res = await fetch('/api/users', {
+      const endpoint = currentTab === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ username, password })
       });
 
+      document.getElementById('authBtn').disabled = false;
+
       if (!res.ok) {
-        alert('Erro ao criar usuário.');
-        document.getElementById('connectBtn').disabled = false;
+        const err = await res.json().catch(() => ({}));
+        showAuthError(err.error ?? (res.status === 401 ? 'Credenciais inválidas.' : 'Erro ao autenticar.'));
         return;
       }
 
-      const user = await res.json();
-      currentUserId = user.id;
+      const data = await res.json();
+      jwtToken      = data.token;
+      currentUserId = data.userId;
 
-      document.getElementById('usernameDisplay').textContent = user.username;
-      document.getElementById('connectSection').style.display = 'none';
-      document.getElementById('mainSection').style.display = 'block';
+      localStorage.setItem('sse_session', JSON.stringify({
+        token: jwtToken, userId: currentUserId, username: data.username
+      }));
+
+      document.getElementById('usernameDisplay').textContent = data.username;
+      document.getElementById('authSection').style.display   = 'none';
+      document.getElementById('mainSection').style.display   = 'block';
 
       openStream();
-      fetchUsers();
+    }
+
+    function showAuthError(msg) {
+      const el = document.getElementById('authError');
+      el.textContent    = msg;
+      el.style.display  = 'block';
+    }
+
+    function logout() {
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      localStorage.removeItem('sse_session');
+      jwtToken = null; currentUserId = null;
+      document.getElementById('mainSection').style.display = 'none';
+      document.getElementById('authSection').style.display = 'block';
+      document.getElementById('usernameInput').value = '';
+      document.getElementById('passwordInput').value = '';
+      document.getElementById('messages').innerHTML  = '';
+      document.getElementById('usersList').innerHTML = '';
+      setStatus(false);
+    }
+
+    function authHeaders() {
+      return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` };
     }
 
     function openStream() {
-      eventSource = new EventSource(`/api/notifications/stream?userId=${currentUserId}`);
+      if (eventSource) eventSource.close();
+      eventSource = new EventSource(
+        `/api/notifications/stream?userId=${currentUserId}&token=${encodeURIComponent(jwtToken)}`
+      );
 
-      eventSource.addEventListener('connected', () => {
-        setStatus(true);
-        fetchUsers();
-      });
+      eventSource.addEventListener('connected', () => setStatus(true));
 
       eventSource.addEventListener('notification', (event) => {
-        const data = JSON.parse(event.data);
-        const li = document.createElement('li');
-        const sentAt = new Date(data.sentAt).toLocaleTimeString('pt-BR');
-        li.textContent = `[${sentAt}] ${data.message}`;
+        const data  = JSON.parse(event.data);
+        const li    = document.createElement('li');
+        const time  = new Date(data.sentAt).toLocaleTimeString('pt-BR');
+        li.textContent = `[${time}] ${data.message}`;
         document.getElementById('messages').prepend(li);
         notifyUser(data.message);
+      });
+
+      eventSource.addEventListener('user_list', (event) => {
+        renderUsers(JSON.parse(event.data));
       });
 
       eventSource.onerror = () => setStatus(false);
     }
 
     function setStatus(connected) {
-      const el = document.getElementById('connectionStatus');
+      const el      = document.getElementById('connectionStatus');
       el.textContent = connected ? 'conectado' : 'desconectado';
-      el.className = `status ${connected ? 'online' : 'offline'}`;
+      el.className   = `status ${connected ? 'online' : 'offline'}`;
     }
 
-    async function fetchUsers() {
-      const res = await fetch('/api/users');
-      if (!res.ok) return;
-
-      const users = await res.json();
-
-      // Atualiza dropdown de destinatários (exclui o próprio usuário)
-      const select = document.getElementById('targetUser');
+    function renderUsers(users) {
+      // Update dropdown (exclude self)
+      const select       = document.getElementById('targetUser');
       const currentValue = select.value;
-      select.innerHTML = '<option value="">Todos os usuários online</option>';
+      select.innerHTML   = '<option value="">Todos os usuários online</option>';
       for (const u of users) {
         if (u.id === currentUserId) continue;
-        const opt = document.createElement('option');
-        opt.value = u.id;
+        const opt    = document.createElement('option');
+        opt.value    = u.id;
         opt.textContent = u.username;
         select.appendChild(opt);
       }
       if (currentValue) select.value = currentValue;
 
-      // Atualiza lista de usuários
-      const list = document.getElementById('usersList');
-      list.innerHTML = '';
+      // Update user list
+      const list       = document.getElementById('usersList');
+      list.innerHTML   = '';
       for (const u of users) {
-        const li = document.createElement('li');
+        const li      = document.createElement('li');
         const isOnline = u.status === 1;
-        const badge = `<span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${isOnline ? 'online' : 'offline'}</span>`;
-        li.innerHTML = `${u.username}${badge}${u.id === currentUserId ? ' <em>(você)</em>' : ''}`;
+        const badge    = `<span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${isOnline ? 'online' : 'offline'}</span>`;
+        li.innerHTML   = `${u.username}${badge}${u.id === currentUserId ? ' <em>(você)</em>' : ''}`;
         list.appendChild(li);
       }
     }
 
     document.getElementById('sendForm').addEventListener('submit', async (event) => {
       event.preventDefault();
-      const message = document.getElementById('messageInput').value.trim();
+      const message      = document.getElementById('messageInput').value.trim();
       if (!message) return;
-
       const targetUserId = document.getElementById('targetUser').value || null;
 
       await fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId, message })
+        method:  'POST',
+        headers: authHeaders(),
+        body:    JSON.stringify({ targetUserId, message })
       });
 
       document.getElementById('messageInput').value = '';
@@ -188,7 +258,6 @@
 
     function notifyUser(text) {
       if (!('Notification' in window)) { alert(`Nova mensagem: ${text}`); return; }
-
       if (Notification.permission === 'granted') {
         new Notification('Nova notificação', { body: text });
       } else if (Notification.permission !== 'denied') {

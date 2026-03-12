@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\src\\\\SseNotificationApi\" && dotnet restore && dotnet build 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet test --logger \"console;verbosity=normal\" 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\src\\\\SseNotificationApi\" && dotnet build 2>&1 | tail -5)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet test --logger \"console;verbosity=minimal\" 2>&1 | tail -10)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet test --logger \"console;verbosity=minimal\" 2>&1 | tail -5)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet restore 2>&1 | tail -5)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet test --logger \"console;verbosity=minimal\" 2>&1 | tail -8)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet test --logger \"console;verbosity=normal\" 2>&1 | grep -A 10 \"Inner Stack Trace #1\\\\|SocketException\\\\|Docker\\\\|Cannot connect\\\\|PostgreSqlBuilder\" | head -30)",
+      "Bash(docker info:*)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet restore 2>&1 | tail -3 && dotnet test --logger \"console;verbosity=minimal\" 2>&1 | tail -6)",
+      "Bash(cd \"C:\\\\Users\\\\Eduardo Ferrari\\\\RiderProjects\\\\Github\\\\Estudos\\\\sse-dotnet-notification\\\\tests\\\\SseNotificationApi.Tests\" && dotnet test --logger \"console;verbosity=normal\" 2>&1 | grep \"ArgumentException\\\\|DockerEndpoint\\\\|docker\\\\|DOCKER\" | head -10)",
+      "Read(//var/run/**)",
+      "Bash(echo \"DOCKER_HOST=$DOCKER_HOST\")",
+      "Bash(find /run /tmp -name \"docker.sock\")",
+      "Read(//c/Users/Eduardo Ferrari/.docker/**)",
+      "Read(//mnt/**)",
+      "Read(//mnt/wsl/**)",
+      "Bash(find /mnt -name docker.sock)"
+    ]
+  }
+}

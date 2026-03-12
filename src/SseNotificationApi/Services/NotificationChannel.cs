@@ -3,13 +3,15 @@ using System.Threading.Channels;
 
 namespace SseNotificationApi.Services;
 
+public sealed record SseEvent(string EventType, string Data);
+
 public sealed class NotificationChannel
 {
-    private readonly ConcurrentDictionary<Guid, Channel<string>> _clients = new();
+    private readonly ConcurrentDictionary<Guid, Channel<SseEvent>> _clients = new();
 
-    public ChannelReader<string> RegisterClient(Guid userId)
+    public ChannelReader<SseEvent> RegisterClient(Guid userId)
     {
-        var channel = Channel.CreateUnbounded<string>();
+        var channel = Channel.CreateUnbounded<SseEvent>();
         _clients[userId] = channel;
         return channel.Reader;
     }
@@ -19,9 +21,7 @@ public sealed class NotificationChannel
     public void UnregisterClient(Guid userId)
     {
         if (_clients.TryRemove(userId, out var channel))
-        {
             channel.Writer.TryComplete();
-        }
     }
 
     public async Task<bool> PublishAsync(Guid targetUserId, string message, CancellationToken cancellationToken)
@@ -31,7 +31,7 @@ public sealed class NotificationChannel
 
         try
         {
-            await clientChannel.Writer.WriteAsync(message, cancellationToken);
+            await clientChannel.Writer.WriteAsync(new SseEvent("notification", message), cancellationToken);
             return true;
         }
         catch (ChannelClosedException)
@@ -44,12 +44,34 @@ public sealed class NotificationChannel
     public async Task PublishToAllAsync(string message, CancellationToken cancellationToken)
     {
         var failed = new List<Guid>();
+        var ev = new SseEvent("notification", message);
 
         foreach (var (id, channel) in _clients)
         {
             try
             {
-                await channel.Writer.WriteAsync(message, cancellationToken);
+                await channel.Writer.WriteAsync(ev, cancellationToken);
+            }
+            catch (ChannelClosedException)
+            {
+                failed.Add(id);
+            }
+        }
+
+        foreach (var id in failed)
+            UnregisterClient(id);
+    }
+
+    public async Task PublishUserListAsync(string usersJson, CancellationToken cancellationToken = default)
+    {
+        var failed = new List<Guid>();
+        var ev = new SseEvent("user_list", usersJson);
+
+        foreach (var (id, channel) in _clients)
+        {
+            try
+            {
+                await channel.Writer.WriteAsync(ev, cancellationToken);
             }
             catch (ChannelClosedException)
             {
